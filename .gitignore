@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcarchive
+
+# Build artifacts
+export/
+*.zip
+*.dmg
+
+# Codegraph
+.codegraph/

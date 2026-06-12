@@ -1,19 +1,17 @@
-//
-//  ContentView.swift
-//  LyricBar
-//
-//  Created by Rigel Ramadhani Waloni on 12/06/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var ticker: LyricTicker
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("LyricBar")
+                .font(.headline)
+
+            Text(ticker.current.isEmpty ? "—" : ticker.current)
+                .font(.title3)
+                .bold()
+                .lineLimit(2)
         }
         .padding()
     }
@@ -21,4 +19,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(LyricTicker())
 }

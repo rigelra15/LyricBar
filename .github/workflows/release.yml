@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install tools
+        run: npm install -g create-dmg
+
+      - name: Build & Archive
+        run: |
+          xcodebuild archive \
+            -project LyricBar.xcodeproj \
+            -scheme LyricBar \
+            -configuration Release \
+            -archivePath LyricBar.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package DMG
+        run: |
+          APPDMG=$(npm root -g)/create-dmg/node_modules/.bin/appdmg
+          BUILD_SPEC=dmg-spec.json
+
+          # Build initial DMG with appdmg
+          "$APPDMG" "$BUILD_SPEC" "LyricBar_temp.dmg"
+
+          # Convert to read-write for DS_Store modification
+          hdiutil convert LyricBar_temp.dmg -format UDRW -o LyricBar_rw.dmg
+          rm -f LyricBar_temp.dmg
+
+          # Mount read-write
+          DEV=$(hdiutil attach LyricBar_rw.dmg -readwrite -noverify -noautoopen | egrep '^/dev/' | sed 1q | awk '{print $1}')
+
+          # Apply custom layout (icon positions, background, size)
+          osascript <<'APPLESCRIPT'
+          tell application "Finder"
+            tell disk "LyricBar"
+              open
+              set current view of container window to icon view
+              set toolbar visible of container window to false
+              set statusbar visible of container window to false
+              set the bounds of container window to {400, 200, 1060, 600}
+              set viewOptions to the icon view options of container window
+              set arrangement of viewOptions to not arranged
+              set icon size of viewOptions to 160
+              set background picture of viewOptions to file ".background:dmg-background.png"
+              set position of item "LyricBar.app" of container window to {180, 170}
+              set position of item "Applications" of container window to {480, 170}
+              close
+              open
+              update without registering applications
+              delay 1
+              close
+            end tell
+          end tell
+          APPLESCRIPT
+
+          sync
+          hdiutil detach "$DEV" -force
+
+          # Convert back to compressed read-only
+          hdiutil convert LyricBar_rw.dmg -format UDZO -imagekey zlib-level=9 -o "LyricBar 1.0.dmg"
+          rm -f LyricBar_rw.dmg LyricBar_temp.dmg
+
+      - name: Generate Release Notes
+        run: |
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git tag --sort=-creatordate | grep -A1 "$CURRENT_TAG" | tail -1)
+          echo "## $CURRENT_TAG" > release_notes.md
+          echo "" >> release_notes.md
+          if [ -z "$PREV_TAG" ]; then
+            echo "### Commits" >> release_notes.md
+            git log --oneline --no-merges --pretty="format:- %s" >> release_notes.md
+          else
+            echo "### Changes since $PREV_TAG" >> release_notes.md
+            git log --oneline --no-merges --pretty="format:- %s" "${PREV_TAG}..HEAD" >> release_notes.md
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          files: LyricBar*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

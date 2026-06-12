@@ -1,0 +1,10 @@
+{
+  "title": "LyricBar",
+  "background": "dmg-background.png",
+  "icon-size": 128,
+  "window": { "size": { "width": 660, "height": 400 } },
+  "contents": [
+    { "x": 180, "y": 170, "type": "file", "path": "LyricBar.xcarchive/Products/Applications/LyricBar.app" },
+    { "x": 480, "y": 170, "type": "link", "path": "/Applications" }
+  ]
+}
