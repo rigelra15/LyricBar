@@ -1,7 +1,7 @@
 # LyricBar
 
 <p align="center">
-  <img src="LyricBar/Assets.xcassets/AppLogo.imageset/logo.jpeg" width="128" alt="LyricBar" style="border-radius: 24px">
+  <img src="LyricBar Rounded.png" width="128" alt="LyricBar" style="border-radius: 24px">
 </p>
 
 A lightweight macOS menu bar app that displays **synchronized lyrics** for the currently playing song from Apple Music or Spotify.
