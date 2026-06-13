@@ -25,19 +25,17 @@ A lightweight macOS menu bar app that displays **synchronized lyrics** for the c
 
 ## Installation
 
-**From DMG (recommended):** Download `LyricBar.*.dmg` from [Releases](https://github.com/rigelra15/LyricBar/releases/latest), open it, drag the app to `/Applications`.
+1. Download `LyricBar.*.dmg` from the [latest release](https://github.com/rigelra15/LyricBar/releases/latest)
+2. Open the DMG and drag **LyricBar** into `/Applications`
+3. The app isn't code-signed, so macOS will block it. Run this in Terminal:
+   ```bash
+   xattr -cr /Applications/LyricBar.app
+   ```
+   (Or right-click the app → **Open** → **Open Anyway**)
+4. Launch LyricBar, approve the automation dialogs for Music/Spotify
+5. Play a song — lyrics sync to the menu bar
 
-Since LyricBar isn't code-signed, macOS will flag it on first launch. The quickest workaround:
-```bash
-xattr -cr /Applications/LyricBar.app
-```
-Alternatively, right-click the app in Finder, pick **Open**, then hit **Open Anyway**.
-
-**From source:** Clone the repo, open `LyricBar.xcodeproj` in Xcode, set your team, ⌘R.
-
-## Usage
-
-Run LyricBar from `/Applications`. Approve the automation prompts for Music/Spotify. Start playing a song — lyrics appear in the menu bar automatically.
+**Build from source:** `git clone` → open `.xcodeproj` in Xcode → ⌘R.
 
 **Menu Bar Items:**
 
