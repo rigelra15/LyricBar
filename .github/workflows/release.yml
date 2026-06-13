@@ -27,11 +27,14 @@ jobs:
 
       - name: Build & Archive
         run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Building version $VERSION"
           xcodebuild archive \
             -project LyricBar.xcodeproj \
             -scheme LyricBar \
             -configuration Release \
             -archivePath LyricBar.xcarchive \
+            MARKETING_VERSION="$VERSION" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
