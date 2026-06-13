@@ -41,6 +41,7 @@ jobs:
 
       - name: Package DMG
         run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
           APPDMG=$(npm root -g)/create-dmg/node_modules/.bin/appdmg
           BUILD_SPEC=dmg-spec.json
 
@@ -89,7 +90,7 @@ jobs:
           hdiutil detach "$DEV" -force
 
           # Convert back to compressed read-only
-          hdiutil convert LyricBar_rw.dmg -format UDZO -imagekey zlib-level=9 -o "LyricBar 1.0.dmg"
+          hdiutil convert LyricBar_rw.dmg -format UDZO -imagekey zlib-level=9 -o "LyricBar ${VERSION}.dmg"
           rm -f LyricBar_rw.dmg LyricBar_temp.dmg
 
       - name: Generate Release Notes
