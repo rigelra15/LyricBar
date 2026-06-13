@@ -103,7 +103,7 @@ final class LyricBarWindows: NSObject, NSWindowDelegate {
         win.styleMask = [.titled, .closable]
         win.delegate = self
         win.isReleasedWhenClosed = false
-        win.setContentSize(NSSize(width: 260, height: 240))
+        win.setContentSize(NSSize(width: 260, height: 250))
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -198,14 +198,14 @@ final class LyricsViewController: NSViewController {
 // MARK: - About View Controller
 final class AboutViewController: NSViewController {
     override func loadView() {
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 220))
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 240))
 
         let icon = NSImageView(image: NSImage(named: "AppLogo") ?? NSApp.applicationIconImage)
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.wantsLayer = true
         icon.layer?.cornerRadius = 16
         icon.layer?.masksToBounds = true
-        icon.frame = NSRect(x: 90, y: 140, width: 80, height: 80)
+        icon.frame = NSRect(x: 90, y: 152, width: 80, height: 80)
         contentView.addSubview(icon)
 
         let title = NSTextField(labelWithString: "LyricBar")
@@ -219,13 +219,13 @@ final class AboutViewController: NSViewController {
         version.font = NSFont.systemFont(ofSize: 12)
         version.textColor = .secondaryLabelColor
         version.alignment = .center
-        version.frame = NSRect(x: 0, y: 100, width: 260, height: 18)
+        version.frame = NSRect(x: 0, y: 102, width: 260, height: 16)
         contentView.addSubview(version)
 
         let desc = NSTextField(labelWithString: "Synced lyrics in your menu bar.\nWorks with Apple Music & Spotify.")
         desc.font = NSFont.systemFont(ofSize: 12)
         desc.alignment = .center
-        desc.frame = NSRect(x: 20, y: 40, width: 220, height: 50)
+        desc.frame = NSRect(x: 20, y: 44, width: 220, height: 50)
         contentView.addSubview(desc)
 
         view = contentView
