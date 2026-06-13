@@ -58,11 +58,22 @@ tell application "Finder"
 end tell
 APPLESCRIPT
 
+echo "==> Setting volume icon..."
+ICON_SRC="${APP_PATH}/Contents/Resources/AppIcon.icns"
+if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "${MOUNT}/.VolumeIcon.icns"
+    SetFile -a C "${MOUNT}"
+fi
+
 echo "==> Finalizing..."
 sync
 hdiutil detach "$DEV" -force
-rm -f "$FINAL_DMG"
-hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$FINAL_DMG"
+for try in 1 2 3 4 5; do
+    if hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$FINAL_DMG" 2>/dev/null; then
+        break
+    fi
+    sleep 2
+done
 rm -f "$RW_DMG"
 
 cd "$SAVED_DIR"

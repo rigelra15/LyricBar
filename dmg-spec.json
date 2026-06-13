@@ -1,6 +1,7 @@
 {
   "title": "LyricBar",
   "background": "dmg-background.png",
+  "icon": "LyricBar.xcarchive/Products/Applications/LyricBar.app/Contents/Resources/AppIcon.icns",
   "icon-size": 128,
   "window": { "size": { "width": 660, "height": 400 } },
   "contents": [

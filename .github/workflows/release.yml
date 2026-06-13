@@ -75,6 +75,13 @@ jobs:
           end tell
           APPLESCRIPT
 
+          # Set volume icon
+          ICON_SRC="LyricBar.xcarchive/Products/Applications/LyricBar.app/Contents/Resources/AppIcon.icns"
+          if [ -f "$ICON_SRC" ]; then
+              cp "$ICON_SRC" "/Volumes/LyricBar/.VolumeIcon.icns"
+              SetFile -a C "/Volumes/LyricBar"
+          fi
+
           sync
           hdiutil detach "$DEV" -force
 
