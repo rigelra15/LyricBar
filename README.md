@@ -35,6 +35,12 @@ A lightweight macOS menu bar app that displays **synchronized lyrics** for the c
 
 Or download the latest release from [Releases](https://github.com/rigelra15/LyricBar/releases).
 
+> **Note:** The app is not code-signed (personal project). After dragging to `/Applications`, you may need to remove the quarantine flag:
+> ```bash
+> xattr -cr /Applications/LyricBar.app
+> ```
+> Or right-click the app in Finder → **Open** → **Open Anyway**.
+
 ## Usage
 
 1. Launch LyricBar — a music note icon appears in your menu bar
