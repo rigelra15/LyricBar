@@ -68,6 +68,7 @@ final class LyricBarWindows: NSObject, NSWindowDelegate {
     static let shared = LyricBarWindows()
 
     private var lyricsWindow: NSWindow?
+    private var aboutWindow: NSWindow?
 
     func showLyrics(ticker: LyricTicker) {
         if let win = lyricsWindow {
@@ -90,20 +91,31 @@ final class LyricBarWindows: NSObject, NSWindowDelegate {
     }
 
     func showAbout() {
+        if let win = aboutWindow {
+            win.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         let aboutVC = AboutViewController()
         let win = NSWindow(contentViewController: aboutVC)
         win.title = "About LyricBar"
         win.styleMask = [.titled, .closable]
-        win.isReleasedWhenClosed = true
+        win.delegate = self
+        win.isReleasedWhenClosed = false
         win.setContentSize(NSSize(width: 260, height: 240))
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        aboutWindow = win
     }
 
     func windowWillClose(_ notification: Notification) {
         if notification.object as? NSWindow == lyricsWindow {
             lyricsWindow = nil
+        }
+        if notification.object as? NSWindow == aboutWindow {
+            aboutWindow = nil
         }
     }
 }
@@ -202,7 +214,8 @@ final class AboutViewController: NSViewController {
         title.frame = NSRect(x: 0, y: 118, width: 260, height: 24)
         contentView.addSubview(title)
 
-        let version = NSTextField(labelWithString: "Version 1.0")
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let version = NSTextField(labelWithString: "Version \(appVersion)")
         version.font = NSFont.systemFont(ofSize: 12)
         version.textColor = .secondaryLabelColor
         version.alignment = .center
