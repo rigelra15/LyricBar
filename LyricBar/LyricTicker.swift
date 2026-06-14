@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import AppKit
 import CryptoKit
+import UniformTypeIdentifiers
 
 // MARK: - LRC Models & Parser
 struct LRCLine: Identifiable {
@@ -11,9 +12,10 @@ struct LRCLine: Identifiable {
 }
 
 enum LRCParser {
+    private static let regex = try! NSRegularExpression(pattern: #"\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]"#, options: [])
+
     static func parse(_ string: String) -> [LRCLine] {
         let lines = string.components(separatedBy: .newlines)
-        let regex = try! NSRegularExpression(pattern: #"\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]"#, options: [])
 
         var results: [LRCLine] = []
 
@@ -112,8 +114,11 @@ nonisolated func nowPlayingFromAppleMusic() -> NowPlayingInfo? {
     guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Music") != nil else {
         return nil
     }
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first != nil else {
+        return nil
+    }
     let script = """
-    with timeout of 3 seconds
+    with timeout of 2 seconds
         if application "Music" is running then
             tell application "Music"
                 if player state is playing and exists current track then
@@ -131,15 +136,18 @@ nonisolated func nowPlayingFromAppleMusic() -> NowPlayingInfo? {
     guard parts.count == 3 else { return nil }
     let posStr = parts[2].replacingOccurrences(of: ",", with: ".")
     guard let pos = Double(posStr) else { return nil }
-    return NowPlayingInfo(title: parts[0], artist: parts[1], position: pos)
+    return NowPlayingInfo(title: parts[0], artist: parts[1], position: pos, playbackRate: 1)
 }
 
 nonisolated func nowPlayingFromSpotify() -> NowPlayingInfo? {
     guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.spotify.client") != nil else {
         return nil
     }
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client").first != nil else {
+        return nil
+    }
     let script = """
-    with timeout of 3 seconds
+    with timeout of 2 seconds
         if application "Spotify" is running then
             tell application "Spotify"
                 if player state is playing then
@@ -157,12 +165,71 @@ nonisolated func nowPlayingFromSpotify() -> NowPlayingInfo? {
     guard parts.count == 3 else { return nil }
     let posStr = parts[2].replacingOccurrences(of: ",", with: ".")
     guard let pos = Double(posStr) else { return nil }
-    return NowPlayingInfo(title: parts[0], artist: parts[1], position: pos)
+    return NowPlayingInfo(title: parts[0], artist: parts[1], position: pos, playbackRate: 1)
 }
 
 // DISABLED: browser YouTube Music support (AppleScript connection unreliable)
 nonisolated func nowPlayingFromBrowser() -> NowPlayingInfo? {
     return nil
+}
+
+// MARK: - Playback Controls
+nonisolated func controlPlayback(app: AutomationTarget, action: String) {
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: app.bundleIdentifier).first != nil else { return }
+    let script = """
+    with timeout of 2 seconds
+        tell application "\(app.appName)"
+            \(action)
+        end tell
+    end timeout
+    """
+    var error: NSDictionary?
+    guard let appleScript = NSAppleScript(source: script) else { return }
+    appleScript.executeAndReturnError(&error)
+    if let error {
+        NSLog("LyricBar: playback control error: \(error)")
+    }
+}
+
+nonisolated func playPauseMusic() {
+    controlPlayback(app: .music, action: "playpause")
+}
+
+nonisolated func nextTrackMusic() {
+    controlPlayback(app: .music, action: "next track")
+}
+
+nonisolated func previousTrackMusic() {
+    controlPlayback(app: .music, action: "previous track")
+}
+
+nonisolated func playPauseSpotify() {
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client").first != nil else { return }
+    let script = """
+    with timeout of 2 seconds
+        tell application "Spotify"
+            if player state is playing then
+                pause
+            else
+                play
+            end if
+        end tell
+    end timeout
+    """
+    var error: NSDictionary?
+    guard let appleScript = NSAppleScript(source: script) else { return }
+    appleScript.executeAndReturnError(&error)
+    if let error {
+        NSLog("LyricBar: playback control error: \(error)")
+    }
+}
+
+nonisolated func nextTrackSpotify() {
+    controlPlayback(app: .spotify, action: "next track")
+}
+
+nonisolated func previousTrackSpotify() {
+    controlPlayback(app: .spotify, action: "previous track")
 }
 
 enum AutomationTarget {
@@ -243,6 +310,7 @@ final class LyricTicker: ObservableObject {
 
     private var syncLines: [LRCLine] = []
     private var syncStartDate: Date?
+    private var rawLRC: String = ""
 
     var lyricLines: [LRCLine] { syncLines }
 
@@ -250,6 +318,9 @@ final class LyricTicker: ObservableObject {
     private var monitorTimer: Timer?
     private var currentSongKey: String = ""
     private var spotifyAuthCooldown: Date = .distantPast
+    @Published var isPlaying: Bool = false
+    private var lastActiveSource: AutomationTarget?
+    private var idleTimer: Timer?
 
     // MARK: Access check
     func checkAutomationAccess() {
@@ -258,12 +329,20 @@ final class LyricTicker: ObservableObject {
     }
 
     // MARK: Now Playing Monitoring
-    func startMonitoringNowPlaying() {
-        stopMonitoring()
-        monitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+    private let activePollInterval: TimeInterval = 1.0
+    private let idlePollInterval: TimeInterval = 5.0
+
+    private func setPollingTimer(_ interval: TimeInterval) {
+        monitorTimer?.invalidate()
+        monitorTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.pollNowPlaying()
         }
         if let monitorTimer { RunLoop.main.add(monitorTimer, forMode: .common) }
+    }
+
+    func startMonitoringNowPlaying() {
+        stopMonitoring()
+        setPollingTimer(idlePollInterval)
         pollNowPlaying()
     }
 
@@ -276,24 +355,50 @@ final class LyricTicker: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             let amInfo = nowPlayingFromAppleMusic()
+            if amInfo != nil { DispatchQueue.main.async { self.musicAccessOK = true; self.lastActiveSource = .music } }
             let spotifyInfo: NowPlayingInfo?
             if Date().timeIntervalSince(self.spotifyAuthCooldown) >= 60 {
                 spotifyInfo = nowPlayingFromSpotify()
+                if spotifyInfo != nil { DispatchQueue.main.async { self.spotifyAccessOK = true; if amInfo == nil { self.lastActiveSource = .spotify } } }
                 if spotifyInfo == nil && self.spotifyAuthCooldown == .distantPast {
-                    // Spotify exists but returned nil — might be auth issue, set cooldown
                     self.spotifyAuthCooldown = Date()
                 }
             } else {
                 spotifyInfo = nil
             }
-            guard let info = amInfo ?? spotifyInfo else { return }
+            guard let info = amInfo ?? spotifyInfo else {
+                DispatchQueue.main.async {
+                    if self.isPlaying { self.isPlaying = false }
+                    if self.idleTimer == nil {
+                        self.idleTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+                            guard let self else { return }
+                            self.current = "LyricBar"
+                            self.nowPlayingArtist = ""
+                            self.nowPlayingTitle = ""
+                            self.currentSongKey = ""
+                            self.syncLines.removeAll()
+                            self.idleTimer = nil
+                            self.rawLRC = ""
+                            self.setPollingTimer(self.idlePollInterval)
+                        }
+                    }
+                }
+                return
+            }
             DispatchQueue.main.async {
+                self.setPollingTimer(self.activePollInterval)
+                self.idleTimer?.invalidate()
+                self.idleTimer = nil
+                let wasPlaying = self.isPlaying
+                if wasPlaying != info.isPlaying { self.isPlaying = info.isPlaying }
                 let songKey = "\(info.title)||\(info.artist)"
                 if songKey != self.currentSongKey {
                     self.currentSongKey = songKey
                     Task { await self.prepareAndFetch(for: info) }
                 } else if !self.syncLines.isEmpty {
-                    self.updateCurrentLine(elapsed: info.position)
+                    if info.isPlaying || !wasPlaying {
+                        self.updateCurrentLine(elapsed: info.position)
+                    }
                 }
             }
         }
@@ -318,6 +423,7 @@ final class LyricTicker: ObservableObject {
 
             let lines = LRCParser.parse(lrc)
             await MainActor.run {
+                self.rawLRC = lrc
                 self.syncLines = lines
                 self.isFetching = false
                 self.current = lines.first?.text ?? "—"
@@ -326,6 +432,7 @@ final class LyricTicker: ObservableObject {
         } catch {
             NSLog("LyricBar: fetch error: \(error)")
             await MainActor.run {
+                self.rawLRC = ""
                 self.syncLines = []
                 self.isFetching = false
                 self.current = [info.artist, info.title].filter { !$0.isEmpty }.joined(separator: " - ")
@@ -359,12 +466,65 @@ final class LyricTicker: ObservableObject {
     // MARK: Sync update
     private func updateCurrentLine(elapsed: TimeInterval) {
         guard !syncLines.isEmpty else { return }
-        // Find the last line whose time <= elapsed
         var idx = 0
         while idx + 1 < syncLines.count && elapsed >= syncLines[idx + 1].time {
             idx += 1
         }
-        current = syncLines[idx].text
+        let newCurrent = syncLines[idx].text
+        if current != newCurrent { current = newCurrent }
+    }
+
+    // MARK: - Playback Controls
+    func togglePlayPause() {
+        guard let source = lastActiveSource else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch source {
+            case .music: playPauseMusic()
+            case .spotify: playPauseSpotify()
+            }
+        }
+    }
+
+    func nextTrack() {
+        guard let source = lastActiveSource else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch source {
+            case .music: nextTrackMusic()
+            case .spotify: nextTrackSpotify()
+            }
+        }
+    }
+
+    func previousTrack() {
+        guard let source = lastActiveSource else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch source {
+            case .music: previousTrackMusic()
+            case .spotify: previousTrackSpotify()
+            }
+        }
+    }
+
+    // MARK: - Export LRC
+    func exportLRC() {
+        guard !rawLRC.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "\(nowPlayingArtist) - \(nowPlayingTitle).lrc"
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                try? self.rawLRC.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
+    // MARK: - Copy Lyrics
+    func copyLyricsToClipboard() {
+        let lines = syncLines
+        guard !lines.isEmpty else { return }
+        let text = lines.map { $0.text }.joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     // MARK: - Cache helpers

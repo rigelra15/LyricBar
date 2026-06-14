@@ -19,21 +19,25 @@ struct LyricBarApp: App {
 
     var body: some Scene {
         #if os(macOS)
-        MenuBarExtra(ticker.menuBarTitle) {
-            if !ticker.nowPlayingTitle.isEmpty {
-                Text("\(ticker.nowPlayingArtist) - \(ticker.nowPlayingTitle)")
-                    .font(.headline)
-                if !ticker.current.isEmpty && ticker.current != "LyricBar" {
-                    Text(ticker.current)
-                        .foregroundStyle(.secondary)
-                }
-                Divider()
-            }
+        MenuBarExtra {
+            Text(ticker.nowPlayingTitle.isEmpty ? "LyricBar" : "\(ticker.nowPlayingArtist) - \(ticker.nowPlayingTitle)")
+                .font(.headline)
+            Divider()
             Button(ticker.musicAccessOK ? "Music Access ✓" : "Request Music Access") {
                 ticker.requestAutomationAccess(app: .music)
             }
             Button(ticker.spotifyAccessOK ? "Spotify Access ✓" : "Request Spotify Access") {
                 ticker.requestAutomationAccess(app: .spotify)
+            }
+            Divider()
+            Button(action: { ticker.previousTrack() }) {
+                Label("Previous", systemImage: "backward.fill")
+            }
+            Button(action: { ticker.togglePlayPause() }) {
+                Label(ticker.isPlaying ? "Pause" : "Play", systemImage: ticker.isPlaying ? "pause.fill" : "play.fill")
+            }
+            Button(action: { ticker.nextTrack() }) {
+                Label("Next", systemImage: "forward.fill")
             }
             Divider()
             Button("Show Full Lyrics") { LyricBarWindows.shared.showLyrics(ticker: ticker) }
@@ -58,6 +62,12 @@ struct LyricBarApp: App {
             Divider()
             Button("About LyricBar") { LyricBarWindows.shared.showAbout() }
             Button("Quit") { NSApp.terminate(nil) }
+        } label: {
+            if ticker.nowPlayingTitle.isEmpty || ticker.current == "LyricBar" {
+                Text("LyricBar")
+            } else {
+                Text(ticker.menuBarTitle)
+            }
         }
         #endif
     }
